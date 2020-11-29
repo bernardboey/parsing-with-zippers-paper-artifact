@@ -118,8 +118,26 @@ Token definitions
 *)
 let t_A = (1, "A")
 let t_B = (2, "B")
+let t_plus = (3, "+")
+let t_lparen = (4, "(")
+let t_rparen = (5, ")")
+let t_times = (6, "*")
+let t_minus = (7, "-")
+let t_divide = (8, "/")
+let t_0 = (10, "0")
+let t_1 = (11, "1")
+let t_2 = (12, "2")
+let t_3 = (13, "3")
+let t_4 = (14, "4")
+let t_5 = (15, "5")
+let t_6 = (16, "6")
+let t_7 = (17, "7")
+let t_8 = (18, "8")
+let t_9 = (19, "9")
 
-let tok_assoc = [('A', t_A); ('B', t_B)]
+let tok_assoc = [('A', t_A); ('B', t_B); ('+', t_plus); ('(', t_lparen); (')', t_rparen); ('0', t_0);
+                 ('1', t_1); ('2', t_2); ('3', t_3); ('4', t_4); ('5', t_5); ('6', t_6); ('7', t_7);
+                 ('8', t_8); ('9', t_9); ('*', t_times); ('-', t_minus); ('/', t_divide)]
 
 (*
 parse
@@ -437,6 +455,86 @@ module Grammar13 : Grammar = struct
   }
 end
 
+
+(*
+Grammar14: A calculator grammar.
+
+   s0 ::= s0 - s1 | s0 + s1 | s1
+   s1 ::= s1 * s2 | s1 / s2 | s2
+   s2 ::= num | (s0)
+   num ::= digit | nums
+   nums ::= num digit
+   digit ::= 0 | 1 | ... | 9
+*)
+module Grammar14 : Grammar = struct
+  let rec plus = { m = m_bottom; e' = Tok t_plus }
+  and times = { m = m_bottom; e' = Tok t_times }
+  and divide = { m = m_bottom; e' = Tok t_divide }
+  and minus = { m = m_bottom; e' = Tok t_minus }
+  and lparen = { m = m_bottom; e' = Tok t_lparen }
+  and rparen = { m = m_bottom; e' = Tok t_rparen }
+  and num0 = { m = m_bottom; e' = Tok t_0 }
+  and num1 = { m = m_bottom; e' = Tok t_1 }
+  and num2 = { m = m_bottom; e' = Tok t_2 }
+  and num3 = { m = m_bottom; e' = Tok t_3 }
+  and num4 = { m = m_bottom; e' = Tok t_4 }
+  and num5 = { m = m_bottom; e' = Tok t_5 }
+  and num6 = { m = m_bottom; e' = Tok t_6 }
+  and num7 = { m = m_bottom; e' = Tok t_7 }
+  and num8 = { m = m_bottom; e' = Tok t_8 }
+  and num9 = { m = m_bottom; e' = Tok t_9 }
+  and s0_minus_s1 = { m = m_bottom; e' = Seq ("s0_minus_s1", [s0; minus; s1]) }
+  and s0_plus_s1 = { m = m_bottom; e' = Seq ("s0_plus_s1", [s0; plus; s1]) }
+  and s1_times_s2 = { m = m_bottom; e' = Seq ("s1_times_s2", [s1; times; s2]) }
+  and s1_divide_s2 = { m = m_bottom; e' = Seq ("s1_divide_s2", [s1; divide; s2]) }
+  and digit = { m = m_bottom; e' = Alt (ref [num0; num1; num2; num3; num4; num5; num6; num7; num8; num9]) }
+  and num = { m = m_bottom; e' = Alt (ref [digit; nums]) }
+  and nums = { m = m_bottom; e' = Seq ("nums", [num; digit]) }
+  and brackets = { m = m_bottom; e' = Seq ("brackets", [lparen; s0; rparen]) }
+  and s0 = { m = m_bottom; e' = Alt (ref [s0_minus_s1; s0_plus_s1; s1]) }
+  and s1 = { m = m_bottom; e' = Alt (ref [s1_times_s2; s1_divide_s2; s2]) }
+  and s2 = { m = m_bottom; e' = Alt (ref [num; brackets]) }
+
+  let start = s0
+
+  let tests = {
+      success = [ ("5", Some 1)
+                ; ("(2)", Some 1)
+                ; ("3+5", Some 1)
+                ; ("(3+5)", Some 1)
+                ; ("(3+3)+5", Some 1)
+                ; ("3+(3+5)", Some 1)
+                ; ("1*4", Some 1)
+                ; ("(1*4)", Some 1)
+                ; ("(1*2+3)", Some 1)
+                ; ("(1+2*3)", Some 1)
+                ; ("(1*(2+3))", Some 1)
+                ; ("((1+2)*3)", Some 1)
+                ; ("(1+2-3)", Some 1)
+                ; ("(1-2+3)", Some 1)
+                ; ("1-2+3*4", Some 1)
+                ; ("1-2*3+4", Some 1)
+                ; ("1+2-3*4", Some 1)
+                ; ("1+2*3-4", Some 1)
+                ; ("1*2+3-4", Some 1)
+                ; ("1*2-3+4", Some 1)
+                ; ("1*2/3", Some 1)
+                ; ("1/2*3", Some 1)
+                ; ("112+43*123/4123", Some 1)
+                ; ("(326-103)*12+196/4", Some 1)
+                ; ("((18/2+(17-(5*2+3*(4-1))))*(((2-3)+20)*4))*15", Some 1)
+                ];
+      failure = ["(3+3+5"; "(3+3)+5)"; "4+"];
+  }
+end
+
+let interpret (code: string) : int =
+  let ast_list = parse_to_ast_list (module Grammar14) code in
+  match ast_list with
+  | [] -> failwith "Parse error - input is not valid."
+  | ast :: _ -> interpret_calc ast
+
+                           
 (* A list of all the grammars put together. *)
 let grammars : ((module Grammar) list) =
   [ (module Grammar1)
@@ -452,6 +550,7 @@ let grammars : ((module Grammar) list) =
   ; (module Grammar11)
   ; (module Grammar12)
   ; (module Grammar13)
+  ; (module Grammar14)
   ]
 
 (*
